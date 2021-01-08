@@ -5,12 +5,12 @@ XgboostAssign = function(train_object, test_object,train_counts=NULL, var.genes 
   # Find variable genes
   if (is.null(var.genes)){
     var.genes0 = GammaPoissonFit(train_counts[,colnames(train_object)],  num.sd = 0.7, x.high.cutoff = 1, x.low.cutoff = 0.001, do.text = FALSE)
-    var.genes = ClusterSpecificGenes(train_object, ident_use = id_train, genes_test = var.genes0)
+    var.genes = ClusterSpecificGenes(train_object, ident_use = id_train, genes_test = var.genes0) # NOT PRESENT
     var.genes = intersect(var.genes, rownames(test_object@assays$RNA))
   }
   
   
-  # XGBoost Step
+  # Step 1 : XGBoost
   bst_atlas= XGBoost_train(train_object, var.genes = var.genes, do.scale=do.scale, plot.validation=FALSE)
   thresh.use=0.7
   test_Data <- as.matrix(test_object@assays$RNA[var.genes,])
@@ -32,8 +32,11 @@ XgboostAssign = function(train_object, test_object,train_counts=NULL, var.genes 
   names(transfer.label_bst) = rownames(test_object@meta.data)
   test_object@meta.data[,newID] = factor(transfer.label_bst[rownames(test_object@meta.data)])
   
-  # Graph voting
+  #Step2 Graph voting
   Idents(test_object) = newID
+  cells.ident = GraphAssignment(test_object, reduction.use="tsne", knn=12)
+  test_object@meta.data[,paste0(newID,"2")] = cells.ident[rownames(test_object@meta.data)]
+  
   return(test_object)
   
 }
@@ -133,7 +136,7 @@ HarmonizeXgboostRGC = function(test_object, ID1 = "xgboost01", ID2 = "xgboost02"
 }
 
 
-GraphAssignment = function(object, k=60, knn=15, ref.cells = NULL, target.cells = NULL, null.ident = 46, reduction.use = "tsne"){
+GraphAssignment = function(object, k=20, knn=15, ref.cells = NULL, target.cells = NULL, null.ident = 46, reduction.use = "tsne"){
   cells.ident0 = as.character(Idents(object)); names(cells.ident0) = names(Idents(object))
   cells.ident = cells.ident0
   cells.ident.factor = factor(cells.ident, levels = levels(Idents(object)))
